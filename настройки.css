@@ -1,0 +1,435 @@
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent; /* Окно будет невидимым, виден только остров */
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.notch {
+  /* 1. Позиция и размеры по умолчанию */
+  position: absolute;
+  top: 0;
+  width: 160px;
+  height: 32px;
+  background-color: #000;
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+  padding: 0; /* Обязательно указываем 0, чтобы плавный переход в 20px работал без скачков */
+
+  /* 2. Физика Apple (Пружина) */
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  
+  /* Добавим системные настройки текста */
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* 3. При наведении мышки */
+/* Если плеер не открыт, делаем легкое плавное увеличение (как на настоящем Mac) */
+.notch:hover:not(.bluetooth-active):not(.volume-active):not(.expanded) {
+  width: 176px;
+  height: 36px;
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
+}
+
+/* 3.1. Открытый плеер (по клику) */
+.notch.expanded {
+  width: 380px;
+  height: 160px;
+  border-bottom-left-radius: 36px;
+  border-bottom-right-radius: 36px;
+  padding: 20px;
+}
+
+/* --- Стиль iPhone 16 (Открепленный от верхнего края) --- */
+.notch.iphone-16-style {
+  top: 4px; /* Уменьшенный зазор (1-2 мм) */
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+}
+/* Синхронизируем верхние углы с нижними для разных анимаций */
+.notch.iphone-16-style:hover:not(.bluetooth-active):not(.volume-active):not(.expanded) {
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+}
+.notch.iphone-16-style.expanded {
+  border-top-left-radius: 36px;
+  border-top-right-radius: 36px;
+}
+.notch.iphone-16-style.bluetooth-active {
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
+}
+.notch.iphone-16-style.volume-active {
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+}
+
+
+/* 4. Состояние, когда остров скрыт */
+.notch.hidden {
+  top: -50px; /* Уезжает вверх за пределы экрана */
+  opacity: 0; /* Становится прозрачным */
+  pointer-events: none; /* Перестает реагировать на мышку в скрытом состоянии */
+}
+
+/* 5. Анимация Bluetooth */
+.notch.bluetooth-active {
+  width: 260px;
+  height: 44px; /* Чуть выше (толще), чем обычное состояние в 32px */
+  border-bottom-left-radius: 22px;
+  border-bottom-right-radius: 22px;
+}
+
+/* Эффект сопротивления: при наведении на Bluetooth-панель остров пытается растянуться и возвращается назад */
+.notch.bluetooth-active:hover {
+  /* 1.3s - время анимации, forwards - оставляет в конечном (сдутом) состоянии */
+  animation: bt-hover-pulse 1.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes bt-hover-pulse {
+  0% {
+    width: 260px;
+    height: 44px;
+    border-bottom-left-radius: 22px;
+    border-bottom-right-radius: 22px;
+  }
+  30% {
+    width: 280px; /* Стал шире на пару миллиметров */
+    height: 52px; /* Стал выше */
+    border-bottom-left-radius: 26px;
+    border-bottom-right-radius: 26px;
+  }
+  100% {
+    width: 260px; /* Вернулся в изначальное состояние блютуз-панели */
+    height: 44px;
+    border-bottom-left-radius: 22px;
+    border-bottom-right-radius: 22px;
+  }
+}
+
+/* --- Анимация и стили самого плеера --- */
+.music-player {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.1s ease 0s; /* Исправили: теперь пропадает моментально при отводе мыши */
+  pointer-events: none; /* Не кликается пока скрыт */
+}
+
+/* Показываем плеер только когда остров расширился по клику */
+.notch.expanded .music-player {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.2s ease 0.3s; /* Задержка стоит только при появлении! */
+}
+
+/* Шапка: Картинка и текст */
+.music-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.album-art {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px; /* Сильное скругление как на маке */
+  object-fit: cover;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+.music-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-grow: 1; /* Выталкивает эквалайзер в самый правый край */
+  overflow: hidden; /* Чтобы длинные тексты не ломали верстку */
+}
+
+.track-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff; /* Белое название */
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Троеточие, если название длинное */
+}
+
+.track-artist {
+  font-size: 13px;
+  color: #aaaaaa; /* Серо-белый автор */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Анимация эквалайзера --- */
+.equalizer {
+  display: flex;
+  align-items: center; /* Центрируем, чтобы палочки росли и вверх, и вниз */
+  gap: 2px; /* Делаем чуть плотнее, так как палочки стали тоньше */
+  height: 14px;
+  margin-right: 5px;
+  margin-bottom: 2px;
+}
+.equalizer .bar {
+  width: 2px; /* Менее жирные */
+  height: 2px; /* По умолчанию - точки */
+  background-color: #a1a1a6; /* Приятный системный маковский серый */
+  border-radius: 1px;
+  transition: height 0.3s ease; /* Плавное превращение в точки при остановке музыки */
+}
+
+/* Анимации для 6 палочек: края низкие, средние средние, центр высокий */
+.equalizer.playing .bar:nth-child(1) { animation: eq-1 0.7s infinite ease-in-out; }
+.equalizer.playing .bar:nth-child(2) { animation: eq-2 0.8s infinite ease-in-out; }
+.equalizer.playing .bar:nth-child(3) { animation: eq-3 0.6s infinite ease-in-out; }
+.equalizer.playing .bar:nth-child(4) { animation: eq-4 0.9s infinite ease-in-out; }
+.equalizer.playing .bar:nth-child(5) { animation: eq-5 0.7s infinite ease-in-out; }
+.equalizer.playing .bar:nth-child(6) { animation: eq-6 0.8s infinite ease-in-out; }
+
+@keyframes eq-1 {
+  0%, 100% { height: 2px; }
+  50% { height: 5px; } /* 1-ая еле поднимается */
+}
+@keyframes eq-2 {
+  0%, 100% { height: 2px; }
+  40% { height: 8px; } /* 2-ая средняя */
+  70% { height: 4px; }
+}
+@keyframes eq-3 {
+  0%, 100% { height: 2px; }
+  35% { height: 12px; } /* 3-я высокая */
+  75% { height: 6px; }
+}
+@keyframes eq-4 {
+  0%, 100% { height: 2px; }
+  25% { height: 6px; }
+  60% { height: 12px; } /* 4-ая высокая */
+}
+@keyframes eq-5 {
+  0%, 100% { height: 2px; }
+  30% { height: 5px; }
+  65% { height: 8px; } /* 5-ая средняя */
+}
+@keyframes eq-6 {
+  0%, 100% { height: 2px; }
+  55% { height: 5px; } /* 6-ая еле поднимается */
+}
+
+/* Полоса прокрутки (ручка) и время */
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.time {
+  font-size: 11px;
+  color: #aaaaaa;
+  font-weight: 500;
+  width: 35px;
+  text-align: center;
+}
+
+.progress-bar {
+  flex-grow: 1;
+  height: 6px;
+  background-color: #444444; /* Серая часть (остаток) */
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  width: 42%; /* Белая часть (прослушано) */
+  height: 100%;
+  background-color: #ffffff;
+  border-radius: 3px;
+  transition: width 1s linear; /* Плавное скольжение ползунка */
+}
+
+/* Кнопки управления */
+.controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 30px;
+}
+
+.control-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  padding: 0;
+  outline: none; /* Убираем синюю рамку, которая может появляться при клике */
+  display: flex; /* Центрируем наши нарисованные иконки */
+  align-items: center;
+  justify-content: center;
+}
+
+.control-btn:hover {
+  opacity: 0.7;
+}
+
+/* --- Панель Bluetooth --- */
+.bluetooth-panel {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  pointer-events: none;
+}
+
+.notch.bluetooth-active .bluetooth-panel {
+  opacity: 1;
+  transition: opacity 0.2s ease 0.3s; /* Плавное проявление контента только после расширения черного фона */
+}
+
+.bt-image {
+  width: 24px;
+  height: 24px;
+  object-fit: contain; /* Чтобы картинка идеально вписывалась и не плющилась */
+}
+
+.bt-text { color: #ffffff; font-size: 13px; font-weight: 500; flex-grow: 1; margin-left: 10px; }
+
+.bt-battery { color: #1ed760; font-size: 13px; font-weight: 600; }
+
+/* --- Панель Громкости --- */
+.notch.volume-active {
+  width: 200px;
+  height: 36px; /* Чуть шире чем свернутый остров */
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
+}
+
+.volume-panel {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  pointer-events: none;
+}
+
+.notch.volume-active .volume-panel { opacity: 1; transition: opacity 0.2s ease 0.2s; }
+
+.vol-icon { display: flex; align-items: center; margin-right: 12px; }
+
+.vol-segments {
+  display: flex;
+  flex-grow: 1;
+  height: 8px; /* Делаем их чуть потолще для красоты */
+  gap: 5px; /* Нормальный отступ для 4 блоков */
+}
+
+.vol-segment {
+  flex-grow: 1;
+  background-color: #444444; /* Темно-серая (выключенная) капсула */
+  border-radius: 3px; /* Закругления */
+  overflow: hidden; /* Чтобы заливка не вылезала за края закруглений */
+}
+
+.vol-segment-fill {
+  height: 100%;
+  background-color: #ffffff; /* Белая заливка */
+  width: 0%; /* По умолчанию пустой */
+  transition: width 0.1s linear; /* Плавное заполнение внутри блока */
+}
+
+/* --- Компактный плеер (когда остров свернут) --- */
+.compact-player {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px; /* Отступы от краев */
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  pointer-events: none;
+}
+
+/* Показываем компактный плеер ТОЛЬКО когда есть музыка и остров НЕ развернут */
+.notch.has-music:not(.expanded):not(.bluetooth-active):not(.volume-active) .compact-player {
+  opacity: 1;
+  transition: opacity 0.3s ease 0.2s; /* Появляется плавно после сворачивания большого плеера */
+}
+
+.compact-art {
+  width: 20px;
+  height: 20px;
+  border-radius: 10px; /* Идеально круглая иконка как на iPhone */
+  object-fit: cover;
+}
+
+.compact-equalizer {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 14px;
+}
+
+.compact-equalizer .bar {
+  width: 2px;
+  height: 2px;
+  background-color: var(--eq-color, #a1a1a6); /* Цвет из обложки или дефолтный серый */
+  border-radius: 1px;
+  transition: height 0.3s ease, background-color 0.5s ease; /* Плавная смена цвета */
+}
+
+/* Компактный эквалайзер использует те же анимации прыжков, что и большой */
+.compact-equalizer.playing .bar:nth-child(1) { animation: eq-1 0.7s infinite ease-in-out; }
+.compact-equalizer.playing .bar:nth-child(2) { animation: eq-2 0.8s infinite ease-in-out; }
+.compact-equalizer.playing .bar:nth-child(3) { animation: eq-3 0.6s infinite ease-in-out; }
+.compact-equalizer.playing .bar:nth-child(4) { animation: eq-4 0.9s infinite ease-in-out; }
+.compact-equalizer.playing .bar:nth-child(5) { animation: eq-5 0.7s infinite ease-in-out; }
+.compact-equalizer.playing .bar:nth-child(6) { animation: eq-6 0.8s infinite ease-in-out; }
+
+/* --- 6. Режим полноэкранного приложения (Маленькая точка) --- */
+.notch.fullscreen-dot {
+  width: 12px !important;
+  height: 12px !important;
+  top: 4px !important;
+  /* 16px закруглит Остров в идеальную "капсулу" перед сжатием, а при размере 12x12 браузер сам сделает из нее идеальный круг */
+  border-radius: 16px !important;
+  pointer-events: none !important; /* Точка некликабельна в играх */
+  
+  /* Гениальный трюк: Двухэтапный вход! Сначала отрываем от края (top и углы) за 0.4с, 
+     а сжатие (width/height) ждет эти 0.4с и только потом начинается. 
+     При выходе класс удаляется, и Остров вылетает обратно одной плавной пружинной анимацией! */
+  transition: top 0.4s ease, border-radius 0.4s ease, width 0.8s cubic-bezier(0.25, 1, 0.5, 1) 0.4s, height 0.8s cubic-bezier(0.25, 1, 0.5, 1) 0.4s !important;
+}
+
+/* Прячем все внутренности (плеер, громкость), когда мы сжались в точку */
+.notch.fullscreen-dot > * {
+  opacity: 0 !important;
+  transition: opacity 0.5s ease !important;
+}

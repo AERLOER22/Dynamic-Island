@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Island</title>
+    <link rel="stylesheet" href="настройки.css">
+</head>
+<body>
+    <!-- Наш динамический остров -->
+    <div class="notch">
+        <!-- Компактный вид (когда остров свернут) -->
+        <div class="compact-player">
+            <img src="" alt="Album" class="compact-art" style="background: #333;">
+            <div class="compact-equalizer">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </div>
+        </div>
+
+        <!-- Внутренности музыкального плеера -->
+        <div class="music-player">
+            <div class="music-header">
+                <!-- Картинка трека -->
+                <img src="" alt="Album" class="album-art" style="background: #333;">
+                <div class="music-info">
+                    <div class="track-title">Нет музыки</div>
+                    <div class="track-artist">Ожидание...</div>
+                </div>
+                <!-- Эквалайзер -->
+                <div class="equalizer">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
+            </div>
+            <div class="progress-container">
+                <span class="time elapsed">0:00</span>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%;"></div>
+                </div>
+                <span class="time remaining">-0:00</span>
+            </div>
+            <div class="controls">
+                <button class="control-btn prev">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M2 5h3v14H2Z M6 12L14 19V5Z M14 12L22 19V5Z"/></svg>
+                </button>
+                <button class="control-btn play-pause">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M5 5h5v14H5Z M14 5h5v14h-5Z"/></svg>
+                </button>
+                <button class="control-btn next">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M2 5v14l8-7Z M10 5v14l8-7Z M19 5h3v14h-3Z"/></svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Панель подключения наушников -->
+        <div class="bluetooth-panel">
+            <img src="72c18effb99c4cc094e4f5f8a8d93e8d.png" class="bt-image">
+            <div class="bt-text">AirPods Pro</div>
+            <div class="bt-battery">100%</div>
+        </div>
+
+        <!-- Панель Громкости -->
+        <div class="volume-panel">
+            <div class="vol-icon"></div>
+            <div class="vol-segments">
+                <!-- 4 блока с плавной заливкой внутри -->
+                <div class="vol-segment"><div class="vol-segment-fill"></div></div>
+                <div class="vol-segment"><div class="vol-segment-fill"></div></div>
+                <div class="vol-segment"><div class="vol-segment-fill"></div></div>
+                <div class="vol-segment"><div class="vol-segment-fill"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const notch = document.querySelector('.notch');
+        
+        // Helper: Высчитываем средний цвет обложки и делаем его бледно-белым
+        function getAverageColor(base64Image) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 50; canvas.height = 50; // Читаем картинку детальнее
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, 50, 50);
+                    const data = ctx.getImageData(0, 0, 50, 50).data;
+                    
+                    let r = 0, g = 0, b = 0, count = 0;
+                    
+                    for (let i = 0; i < data.length; i += 16) { // Проверяем каждый 4-й пиксель
+                        // Игнорируем слишком темный фон и чистый белый, чтобы вытащить именно "цвет"
+                        if ((data[i] < 30 && data[i+1] < 30 && data[i+2] < 30) || 
+                            (data[i] > 230 && data[i+1] > 230 && data[i+2] > 230)) continue;
+                        r += data[i]; g += data[i+1]; b += data[i+2]; count++;
+                    }
+                    
+                    if (count === 0) return resolve('#a1a1a6'); // Если картинка черно-белая
+                    
+                    r = Math.floor(r / count); g = Math.floor(g / count); b = Math.floor(b / count);
+                    
+                    // Искусственно вытягиваем насыщенность цвета, делаем его ярче
+                    const max = Math.max(r, g, b);
+                    if (max > 0) {
+                        const mult = 255 / max;
+                        // Выкручиваем яркость и насыщенность на самый максимум
+                        r = Math.floor(r * mult);
+                        g = Math.floor(g * mult);
+                        b = Math.floor(b * mult);
+                    }
+                    
+                    // Оставляем 85% сочного цвета и только 15% белого для легкого свечения
+                    const paleR = Math.floor(r * 0.85 + 255 * 0.15);
+                    const paleG = Math.floor(g * 0.85 + 255 * 0.15);
+                    const paleB = Math.floor(b * 0.85 + 255 * 0.15);
+                    
+                    resolve(`rgb(${paleR}, ${paleG}, ${paleB})`);
+                };
+                img.onerror = () => resolve('#a1a1a6');
+                img.src = base64Image;
+            });
+        }
+
+        let rightClicks = 0;
+        let rightClickTimer;
+
+        // Когда мышка заходит на остров - перехватываем клики для кнопок плеера
+        notch.addEventListener('mouseenter', () => {
+            ipcRenderer.send('set-ignore-mouse-events', false);
+        });
+
+        // Когда мышка уходит в прозрачную зону - снова пропускаем клики насквозь в другие программы
+        notch.addEventListener('mouseleave', () => {
+            ipcRenderer.send('set-ignore-mouse-events', true);
+            notch.classList.remove('expanded'); // Автоматически сворачиваем плеер, если убрали мышь
+        });
+
+        // Открытие плеера по клику ЛКМ
+        notch.addEventListener('click', (e) => {
+            // Если кликаем по кнопкам управления (пауза/вперед) - не закрываем остров!
+            if (e.target.closest('.control-btn')) return;
+            
+            // Открываем плеер ТОЛЬКО если есть музыка и нет активных уведомлений
+            if (notch.classList.contains('has-music') && !notch.classList.contains('bluetooth-active') && !notch.classList.contains('volume-active')) {
+                notch.classList.toggle('expanded');
+            }
+        });
+
+        // 1. Скрытие по 3 нажатиям ПКМ по острову
+        notch.addEventListener('mousedown', (e) => {
+            if (e.button === 2) { // 2 - это Правая Кнопка Мыши
+                rightClicks++;
+                clearTimeout(rightClickTimer);
+                rightClickTimer = setTimeout(() => rightClicks = 0, 1000); // Сбрасываем счетчик через 1 секунду
+
+                if (rightClicks === 3) {
+                    notch.classList.add('hidden');
+                    rightClicks = 0;
+                    // Если мы спрятали остров - сразу делаем его некликабельным
+                    ipcRenderer.send('set-ignore-mouse-events', true); 
+                }
+            }
+        });
+
+        // 2. Возвращение (или скрытие) по нашей глобальной горячей клавише
+        ipcRenderer.on('toggle-island', () => {
+            notch.classList.toggle('hidden');
+        });
+
+        // 2.1 Переключение стиля (iPhone 13 / 16)
+        ipcRenderer.on('toggle-style', () => {
+            notch.classList.toggle('iphone-16-style');
+        });
+
+        // 3. Обновляем все элементы плеера
+        ipcRenderer.on('update-media', (event, data) => {
+            document.querySelector('.track-title').innerText = data.title;
+            document.querySelector('.track-artist').innerText = data.artist;
+            
+            // Управляем отображением компактного плеера
+            if (data.title && data.title !== 'Нет музыки' && data.title !== 'Ожидание...') {
+                notch.classList.add('has-music');
+            } else {
+                notch.classList.remove('has-music');
+            }
+
+            // Ставим картинку (если 'none', то очищаем. Если 'same' - не трогаем)
+            if (data.albumArt === 'none') {
+                document.querySelector('.album-art').src = '';
+                document.querySelector('.compact-art').src = '';
+                document.documentElement.style.setProperty('--eq-color', '#a1a1a6');
+            } else if (data.albumArt !== 'same' && data.albumArt) {
+                document.querySelector('.album-art').src = data.albumArt;
+                document.querySelector('.compact-art').src = data.albumArt;
+                
+                // Вычисляем цвет и отдаем его в CSS
+                getAverageColor(data.albumArt).then(color => {
+                    document.documentElement.style.setProperty('--eq-color', color);
+                });
+            }
+
+            document.querySelector('.progress-fill').style.width = data.progress + '%';
+            document.querySelector('.time.elapsed').innerText = data.elapsed;
+            document.querySelector('.time.remaining').innerText = data.remaining;
+
+            // Меняем иконку Плей/Пауза и эквалайзеры
+            const playPauseBtn = document.querySelector('.control-btn.play-pause');
+            const eq = document.querySelector('.equalizer');
+            const compactEq = document.querySelector('.compact-equalizer');
+            if (data.playing) {
+                playPauseBtn.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M5 5h5v14H5Z M14 5h5v14h-5Z"/></svg>'; // Пауза
+                eq.classList.add('playing');
+                compactEq.classList.add('playing');
+            } else {
+                playPauseBtn.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>'; // Плей
+                eq.classList.remove('playing');
+                compactEq.classList.remove('playing');
+            }
+        });
+
+        // 5. Отправляем команды переключения треков в Windows при клике на кнопки
+        document.querySelector('.control-btn.prev').addEventListener('click', () => {
+            ipcRenderer.send('media-prev');
+        });
+
+        document.querySelector('.control-btn.play-pause').addEventListener('click', () => {
+            ipcRenderer.send('media-play-pause');
+        });
+
+        document.querySelector('.control-btn.next').addEventListener('click', () => {
+            ipcRenderer.send('media-next');
+        });
+
+        // 6. Анимация подключения Bluetooth
+        let btTimer;
+        
+        ipcRenderer.on('show-bluetooth', () => {
+            triggerBluetooth("Тест Наушников", "100%"); // Для нашей горячей клавиши
+        });
+
+        // Настоящие данные о подключении из Python
+        ipcRenderer.on('show-bluetooth-real', (event, data) => {
+            triggerBluetooth(data.name, data.battery);
+        });
+
+        function triggerBluetooth(name, battery) {
+            document.querySelector('.bt-text').innerText = name;
+            document.querySelector('.bt-battery').innerText = battery;
+
+            notch.classList.add('bluetooth-active'); 
+
+            clearTimeout(btTimer);
+            btTimer = setTimeout(() => {
+                notch.classList.remove('bluetooth-active'); 
+            }, 4000); 
+        }
+
+        // 7. Анимация изменения громкости
+        let volTimer;
+        ipcRenderer.on('update-volume', (event, data) => {
+            if (notch.classList.contains('hidden')) return; // Не показываем, если остров скрыт по Ctrl+Shift+I
+
+            // 4 блока, каждый отвечает за 25% громкости
+            const numBlocks = 4;
+            const blockVal = 100 / numBlocks;
+            const fills = document.querySelectorAll('.vol-segment-fill');
+
+            fills.forEach((fill, index) => {
+                if (data.muted || data.volume === 0) {
+                    fill.style.width = '0%';
+                    return;
+                }
+                const start = index * blockVal;
+                const end = (index + 1) * blockVal;
+                let fillPct = 0;
+                
+                // Заливаем блок полностью, частично или оставляем пустым
+                if (data.volume >= end) fillPct = 100;
+                else if (data.volume > start) fillPct = ((data.volume - start) / blockVal) * 100;
+                
+                fill.style.width = fillPct + '%';
+            });
+            
+            // Если звук выключен (0% или нажат Mute) — ставим перечеркнутый динамик
+            if (data.muted || data.volume === 0) {
+                document.querySelector('.vol-icon').innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.11-.31 2.16-.8 3.1-1.46L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>';
+            } else {
+                document.querySelector('.vol-icon').innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+            }
+
+            notch.classList.add('volume-active');
+
+            clearTimeout(volTimer);
+            volTimer = setTimeout(() => {
+                notch.classList.remove('volume-active');
+            }, 1500); // Прячем панель громкости через 1.5 секунды
+        });
+
+        // 8. Анимация полноэкранного режима (Игры/Видео)
+        ipcRenderer.on('update-fullscreen', (event, data) => {
+            if (data.isFullscreen) {
+                notch.classList.add('fullscreen-dot');
+            } else {
+                notch.classList.remove('fullscreen-dot');
+            }
+        });
+    </script>
+</body>
+</html>

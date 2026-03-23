@@ -1,0 +1,36 @@
+{
+  "name": "dynamic-island-win",
+  "version": "1.0.0",
+  "description": "Dynamic Island for Windows",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "author": "Твое Имя",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^24.9.1",
+    "electron-rebuild": "^3.2.9"
+  },
+  "build": {
+    "appId": "com.dynamic.island",
+    "asar": false,
+    "extraResources": [
+      {
+        "from": "python-bin",
+        "to": "python-bin"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true
+    }
+  }
+}
